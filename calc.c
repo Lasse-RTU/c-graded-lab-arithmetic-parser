@@ -81,7 +81,7 @@ void next_token(Lexer *lex) {
     while (i < lex->length && (lex->buffer[i] == ' ' || lex->buffer[i] == '\t')) {
         i++;
     }
-    // Token position is 1 based
+    // Token position is 1 based so the token pos is one above the buffer index
     t.pos = i + 1;
 
     if (i>=lex->length || lex->buffer[i] == '\n') {
@@ -125,18 +125,17 @@ void next_token(Lexer *lex) {
                     while (i < lex->length && isdigit((unsigned char)lex->buffer[i])) {
                         i++;
                     }
-                    if (i < lex->length && lex->buffer[i] == '.') {
-                        if (i + 1 < lex->length && isdigit((unsigned char) lex->buffer[i + 1])) {                        
-                            i++; // skip the dot
-                            while (i + 1 < lex->length && isdigit((unsigned char)lex->buffer[i + 1])) {
-                                i++;
-                            }
-                            t.type = NUM;
-                            t.is_float = 1;
-                            t.d = strtod(lex->buffer + start, NULL);
+                    if (i + 1 < lex->length && lex->buffer[i] == '.' && isdigit((unsigned char)lex->buffer[i + 1])) {
+                        i++; // skip the dot
+                        while (i < lex->length && isdigit((unsigned char)lex->buffer[i])) {
                             i++;
                         }
+                        t.type = NUM;
+                        t.is_float = 1;
+                        t.d = strtod(lex->buffer + start, NULL);
                     } else {
+                        // this call return an integer and
+                        // the next call returns the '.' as INVALID
                         t.type = NUM;
                         t.is_float = 0;
                         t.i = strtoll(lex->buffer + start, NULL, 10);
