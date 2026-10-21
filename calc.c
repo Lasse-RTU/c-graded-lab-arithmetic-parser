@@ -49,7 +49,7 @@ long long pow_sucks(long long a, long long b);
 int main() {
     const char *input = "12.5 ** (3 + 4)";
     const char *input2 = "42 * 4 - 2 + 5. + 3";
-    Lexer lex = {input2, (long)strlen(input), 0, {0}};
+    Lexer lex = {input2, (long)strlen(input2), 0, {0}};
 
     do {
         next_token(&lex);
@@ -251,7 +251,21 @@ Value power(Lexer *lex) {
 }
 
 Value primary(Lexer *lex) {
+    // TODO: Error handling, END
     Value v = {0};
+    Token t = lex->current;
+    if (t.type == NUM) {
+        v.is_float = t.is_float;
+        v.i = t.i;
+        v.d = t.d;
+        next_token(lex);
+    } else if (t.type == LEFTP) {
+        next_token(lex);
+        v = expr(lex);
+        if (lex->current.type == RIGHTP) {
+            next_token(lex);
+        }
+    }
     return v;
 }
 
