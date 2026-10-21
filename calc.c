@@ -1,12 +1,12 @@
 // Lasse Mads Fenske 260ADM040
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
-// Resources used: <every AI tool, website and book you used; details in comments where you used them>
-
+// Resources used: https://craftinginterpreters.com/parsing-expressions.html
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>  
+#include <string.h> 
 
 typedef enum {
     NUM, PLUS, MINUS, MUL, DIV, POWER, LEFTP, RIGHTP, END, INVALID
@@ -34,7 +34,15 @@ void next_token(Lexer *lex);
 
 
 int main() {
-  
+    const char *input = "12.5 ** (3 + 4)";
+    const char *input2 = "42 * 4 - 2 + 5. + 3";
+    Lexer lex = {input2, (long)strlen(input), 0, {0}};
+
+    do {
+        next_token(&lex);
+        printf("type %d at pos %ld\n", lex.current.type, lex.current.pos);
+    } while (lex.current.type != END);
+
     return 0;
 }
 
