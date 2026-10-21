@@ -1,7 +1,7 @@
 // Lasse Mads Fenske 260ADM040
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
-// Resources used: https://craftinginterpreters.com/parsing-expressions.html [1] I used this to understand to how to build a parser and the logic behind recursive decent
+// Resources used: https://craftinginterpreters.com/parsing-expressions.html [1] I used this to understand to how to build a parser and the logic behind recursive descent
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +26,7 @@ typedef struct {
     long length;
     long index;
     Token current;
+    long error_pos;
 } Lexer;
 
 typedef struct {
@@ -49,7 +50,7 @@ long long pow_sucks(long long a, long long b);
 int main() {
     const char *input = "12.5 ** (3 + 4)";
     const char *input2 = "42 * 4 - 2 + 5. + 3";
-    Lexer lex = {input2, (long)strlen(input2), 0, {0}};
+    Lexer lex = {input2, (long)strlen(input2), 0, {0}, 0};
 
     do {
         next_token(&lex);
@@ -174,13 +175,18 @@ void next_token(Lexer *lex) {
 
 // based on the logic and explanations from [1]
 Value expr(Lexer *lex) {
-    // TODO: Error handling
     Value v = term(lex);
+    if (lex->error_pos != 0) {
+        return v;
+    }
 
     while (lex->current.type == PLUS || lex->current.type == MINUS) {
         Token operator = lex->current;
         next_token(lex);
         Value right_value = term(lex);
+        if (lex->error_pos != 0) {
+            return v;
+        }
         if (v.is_float || right_value.is_float) {
             double a = to_double(v);
             double b = to_double(right_value);
@@ -203,50 +209,79 @@ Value expr(Lexer *lex) {
 
 // based on the logic and explanations from [1]
 Value term(Lexer *lex) {
-    // TODO: Error handling
     Value v = power(lex);
-        while (lex->current.type == MUL || lex->current.type == DIV) {
-            Token operator = lex->current;
-            next_token(lex);
-            Value right_value = power(lex);
-            if (v.is_float || right_value.is_float) {
-                double a = to_double(v);
-                double b = to_double(right_value);
-                v.is_float = 1;
-                if (operator.type == MUL) {
-                    v.d = a * b;
-                } else {
-                    // TODO check if b is zero before div
-                    v.d = a / b;
-                }          
+    if (lex->error_pos != 0) {
+        return v;
+    }
+    while (lex->current.type == MUL || lex->current.type == DIV) {
+        Token operator = lex->current;
+        next_token(lex);
+        long right_position = lex->current.pos; // start of the right operand for error reporting
+        Value right_value = power(lex);
+        if (lex->error_pos != 0) {
+            return v;
+        }
+        if (v.is_float || right_value.is_float) {
+            double a = to_double(v);
+            double b = to_double(right_value);
+            v.is_float = 1;
+            if (operator.type == MUL) {
+                v.d = a * b;
             } else {
-                if (operator.type == MUL) {
-                    v.i = v.i * right_value.i;
+                if (b == 0) {
+                    lex->error_pos = right_position;
+                    return v;
                 } else {
-                    // TODO check if b is zero before div
+                    v.d = a / b;
+                }
+            }          
+        } else {
+            if (operator.type == MUL) {
+                v.i = v.i * right_value.i;
+            } else {
+                if (right_value.i == 0) {
+                    lex->error_pos = right_position;
+                    return v;
+                } else {
                     v.i = v.i / right_value.i;
                 }
             }
         }
+    }
     return v;
 }
 
 // based on the logic and explanations from [1]
 Value power(Lexer *lex) {
-    // TODO: Error handling
     Value v = primary(lex);
+    if (lex->error_pos != 0) {
+        return v;
+    }
 
     if (lex->current.type == POWER) {
+        long operator_pos = lex->current.pos; // needed for error index in case of NaN and infinite
         next_token(lex);
+        long exponent_pos = lex->current.pos; // needed for error index in case of negative exponent for integer exponentiation 
         Value right_value = power(lex);
+        if (lex->error_pos != 0) {
+            return v;
+        }
         if (v.is_float || right_value.is_float) {
             double a = to_double(v);
             double b = to_double(right_value);
             v.is_float = 1;
-            v.d = pow(a, b);    
+            v.d = pow(a, b);
+            if (isnan(v.d) || isinf(v.d)) {
+                lex->error_pos = operator_pos;
+                return v;
+            }  
         } else {
-            // TODO: Handle right_value.i being negative
-            v.i = pow_sucks(v.i, right_value.i);
+            if (right_value.i < 0) {
+                lex->error_pos = exponent_pos;
+                return v;
+            } else {
+                v.i = pow_sucks(v.i, right_value.i);
+            }
         }
     }
     return v;
@@ -254,7 +289,6 @@ Value power(Lexer *lex) {
 
 // based on the logic and explanations from [1]
 Value primary(Lexer *lex) {
-    // TODO: Error handling, END
     Value v = {0};
     Token t = lex->current;
     if (t.type == NUM) {
@@ -265,9 +299,17 @@ Value primary(Lexer *lex) {
     } else if (t.type == LEFTP) {
         next_token(lex);
         v = expr(lex);
+        if (lex->error_pos != 0) {
+            return v;
+        }
         if (lex->current.type == RIGHTP) {
             next_token(lex);
+        } else {
+            lex->error_pos = lex->current.pos;
+            return v;
         }
+    } else {
+        lex->error_pos = t.pos;
     }
     return v;
 }
