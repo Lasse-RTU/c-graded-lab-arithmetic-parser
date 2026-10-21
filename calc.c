@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <ctype.h>  
 #include <string.h> 
+#include <math.h>
 
 typedef enum {
     NUM, PLUS, MINUS, MUL, DIV, POWER, LEFTP, RIGHTP, END, INVALID
@@ -41,6 +42,7 @@ Value term(Lexer *lex);
 Value power(Lexer *lex);
 Value primary(Lexer *lex);
 double to_double(Value v);
+long long pow_sucks(long long a, long long b);
 
 
 
@@ -172,6 +174,7 @@ void next_token(Lexer *lex) {
 
 
 Value expr(Lexer *lex) {
+    // TODO: Error handling
     Value v = term(lex);
 
     while (lex->current.type == PLUS || lex->current.type == MINUS) {
@@ -199,7 +202,55 @@ Value expr(Lexer *lex) {
 }
 
 Value term(Lexer *lex) {
-    // placeholder
+    // TODO: Error handling
+    Value v = power(lex);
+        while (lex->current.type == MUL || lex->current.type == DIV) {
+            Token operator = lex->current;
+            next_token(lex);
+            Value right_value = power(lex);
+            if (v.is_float || right_value.is_float) {
+                double a = to_double(v);
+                double b = to_double(right_value);
+                v.is_float = 1;
+                if (operator.type == MUL) {
+                    v.d = a * b;
+                } else {
+                    // TODO check if b is zero before div
+                    v.d = a / b;
+                }          
+            } else {
+                if (operator.type == MUL) {
+                    v.i = v.i * right_value.i;
+                } else {
+                    // TODO check if b is zero before div
+                    v.i = v.i / right_value.i;
+                }
+            }
+        }
+    return v;
+}
+
+Value power(Lexer *lex) {
+    // TODO: Error handling
+    Value v = primary(lex);
+
+    if (lex->current.type == POWER) {
+        next_token(lex);
+        Value right_value = power(lex);
+        if (v.is_float || right_value.is_float) {
+            double a = to_double(v);
+            double b = to_double(right_value);
+            v.is_float = 1;
+            v.d = pow(a, b);    
+        } else {
+            // TODO: Handle right_value.i being negative
+            v.i = pow_sucks(v.i, right_value.i);
+        }
+    }
+    return v;
+}
+
+Value primary(Lexer *lex) {
     Value v = {0};
     return v;
 }
@@ -210,4 +261,15 @@ double to_double(Value v) {
     } else {
         return (double) v.i;
     }
+}
+
+// the default pow function of the math library uses double for calculation
+// and thus is imprecise. That's why I had to create this helper function
+// b needs to be at least 0
+long long pow_sucks(long long a, long long b) {
+    long long result = 1;
+    for (long long i = 1; i <= b ;i++) {
+        result *= a;
+    }
+    return result;
 }
