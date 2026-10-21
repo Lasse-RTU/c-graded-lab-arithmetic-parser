@@ -1,7 +1,7 @@
 // Lasse Mads Fenske 260ADM040
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
-// Resources used: https://craftinginterpreters.com/parsing-expressions.html
+// Resources used: https://craftinginterpreters.com/parsing-expressions.html [1] I used this to understand to how to build a parser and the logic behind recursive decent
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,9 +27,19 @@ typedef struct {
     Token current;
 } Lexer;
 
+typedef struct {
+    int is_float;
+    long long i;
+    double d;
+} Value;
+
 // reads the whole file inot one buffer with '\0' at the end
 char *read_file(const char *filename, long *len);
 void next_token(Lexer *lex);
+Value expr(Lexer *lex);
+Value term(Lexer *lex);
+Value power(Lexer *lex);
+Value primary(Lexer *lex);
 
 
 
