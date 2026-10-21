@@ -40,6 +40,7 @@ Value expr(Lexer *lex);
 Value term(Lexer *lex);
 Value power(Lexer *lex);
 Value primary(Lexer *lex);
+double to_double(Value v);
 
 
 
@@ -167,4 +168,46 @@ void next_token(Lexer *lex) {
     }
     lex->index = i;
     lex->current = t;
+}
+
+
+Value expr(Lexer *lex) {
+    Value v = term(lex);
+
+    while (lex->current.type == PLUS || lex->current.type == MINUS) {
+        Token operator = lex->current;
+        next_token(lex);
+        Value right_value = term(lex);
+        if (v.is_float || right_value.is_float) {
+            double a = to_double(v);
+            double b = to_double(right_value);
+            v.is_float = 1;
+            if (operator.type == PLUS) {
+                v.d = a + b;
+            } else {
+                v.d = a - b;
+            }          
+        } else {
+            if (operator.type == PLUS) {
+                v.i = v.i + right_value.i;
+            } else {
+                v.i = v.i - right_value.i;
+            }
+        }
+    }
+    return v;
+}
+
+Value term(Lexer *lex) {
+    // placeholder
+    Value v = {0};
+    return v;
+}
+
+double to_double(Value v) {
+    if (v.is_float) {
+        return v.d;
+    } else {
+        return (double) v.i;
+    }
 }
