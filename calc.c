@@ -172,7 +172,7 @@ void next_token(Lexer *lex) {
     lex->current = t;
 }
 
-
+// based on the logic and explanations from [1]
 Value expr(Lexer *lex) {
     // TODO: Error handling
     Value v = term(lex);
@@ -201,6 +201,7 @@ Value expr(Lexer *lex) {
     return v;
 }
 
+// based on the logic and explanations from [1]
 Value term(Lexer *lex) {
     // TODO: Error handling
     Value v = power(lex);
@@ -230,6 +231,7 @@ Value term(Lexer *lex) {
     return v;
 }
 
+// based on the logic and explanations from [1]
 Value power(Lexer *lex) {
     // TODO: Error handling
     Value v = primary(lex);
@@ -250,6 +252,7 @@ Value power(Lexer *lex) {
     return v;
 }
 
+// based on the logic and explanations from [1]
 Value primary(Lexer *lex) {
     // TODO: Error handling, END
     Value v = {0};
