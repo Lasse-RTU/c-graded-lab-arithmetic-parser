@@ -8,8 +8,12 @@
 #include <ctype.h>  
 #include <string.h> 
 #include <math.h>
+#include <sys/stat.h>
+#include <errno.h>
 
-#define FILE_PATH "lasse_fenske_260ADM040"
+#define LAST_NAME "fenske"
+#define FIRST_NAME "lasse"
+#define STUDENT_ID "260adm040"
 
 typedef enum {
     NUM, PLUS, MINUS, MUL, DIV, POWER, LEFTP, RIGHTP, END, INVALID
@@ -47,6 +51,7 @@ Value primary(Lexer *lex);
 double to_double(Value v);
 long long pow_sucks(long long a, long long b);
 int process_file(const char *input_path, const char *output_path);
+int ends_with_txt(const char *name);
 
 
 
@@ -81,8 +86,52 @@ int main(int argc, char **argv) {
             input_file = argv[i];
         }
     }
-    
+
+    char base_name[1024];
+    get_base_name(input_file, base_name);
+
+    char default_dir[1100];
+
+    if (output_dir == NULL) {
+        sprintf(default_dir, "%s_%s_%s", base_name, FIRST_NAME, STUDENT_ID);
+        output_dir = default_dir;
+    }
+
+    if (mkdir(output_dir, 0755) != 0 && errno != EEXIST) {
+        perror(output_dir);
+        return 1;
+    }
+
+    char full_output_path[2200];
+    sprintf(full_output_path, "%s/%s_%s_%s_%s.txt",
+            output_dir, base_name, FIRST_NAME, LAST_NAME, STUDENT_ID);
+
+
+    if (process_file(input_file, full_output_path) != 0) {
+        return 1;
+    }
+
     return 0;
+}
+
+void get_base_name(const char *path, char *base_name) {
+
+    char *slash = strrchr(path, '/');
+    if (slash != NULL) {
+        strcpy(base_name, ++slash);
+    } else {
+        strcpy(base_name, path);
+    }
+    
+    if (ends_with_txt(base_name) != 0) {
+        base_name[strlen(base_name) - 4] = '\0';
+    }
+
+}
+
+int ends_with_txt(const char *name) {
+    size_t len = strlen(name);
+    return len > 4 && strstr(name + len - 4, ".txt") != NULL;
 }
 
 char *read_file(const char *filename, long *len) {
