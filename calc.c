@@ -9,6 +9,8 @@
 #include <string.h> 
 #include <math.h>
 
+#define FILE_PATH "lasse_fenske_260ADM040"
+
 typedef enum {
     NUM, PLUS, MINUS, MUL, DIV, POWER, LEFTP, RIGHTP, END, INVALID
     } TokenType;
@@ -49,11 +51,22 @@ int process_file(const char *input_path, const char *output_path);
 
 
 int main(int argc, char **argv) {
-    char filename = "";
-    const char *input = "12.5 ** (3 + 4)";
-    const char *input2 = "42 * 4 - 2 + 5. + 3";
-    Lexer lex = {input2, (long)strlen(input2), 0, {0}, 0};
-
+    const char *input_file = NULL;
+    const char *input_dir = NULL;
+    const char *output_dir = NULL;
+    
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dir") == 0) {
+            i++;
+            if (i >= argc) {
+                return 1;
+            }
+            if (input_dir != NULL) {
+                return 1;
+            }
+            input_dir = argv[i];
+        }
+    }
     return 0;
 }
 
@@ -376,6 +389,14 @@ int process_file(const char *input_path, const char *output_path) {
         }
 
         if (lex.error_pos != 0) {
+            // close the file and reopen it in write mode to overwrite everythig
+            fclose(fp);
+            fp = fopen(output_path, "w");
+            if (fp == NULL) {
+                free(buffer);
+                return -1;
+            }
+            fprintf(fp, "ERROR:%ld\n", lex.error_pos);
             break;
         }
 
@@ -386,7 +407,8 @@ int process_file(const char *input_path, const char *output_path) {
         }
         i = lex.index + 1;
     }
-
+    fclose(fp);
+    free(buffer);
     return 0;
 }
 
