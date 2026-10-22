@@ -65,8 +65,23 @@ int main(int argc, char **argv) {
                 return 1;
             }
             input_dir = argv[i];
+        } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output-dir") == 0) {
+            i++;
+            if (i >= argc) {
+                return 1;
+            }
+            if (output_dir != NULL) {
+                return 1;
+            }
+            output_dir = argv[i];
+        } else {
+            if (input_file != NULL) {
+                return 1;
+            }
+            input_file = argv[i];
         }
     }
+    
     return 0;
 }
 
