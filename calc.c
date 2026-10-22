@@ -44,18 +44,15 @@ Value power(Lexer *lex);
 Value primary(Lexer *lex);
 double to_double(Value v);
 long long pow_sucks(long long a, long long b);
+int process_file(const char *input_path, const char *output_path);
 
 
 
-int main() {
+int main(int argc, char **argv) {
+    char filename = "";
     const char *input = "12.5 ** (3 + 4)";
     const char *input2 = "42 * 4 - 2 + 5. + 3";
     Lexer lex = {input2, (long)strlen(input2), 0, {0}, 0};
-
-    do {
-        next_token(&lex);
-        printf("type %d at pos %ld\n", lex.current.type, lex.current.pos);
-    } while (lex.current.type != END);
 
     return 0;
 }
@@ -195,7 +192,11 @@ Value expr(Lexer *lex) {
                 v.d = a + b;
             } else {
                 v.d = a - b;
-            }          
+            }
+            if (isnan(v.d) || isinf(v.d)) {
+                lex->error_pos = operator.pos;
+                return v;
+            }  
         } else {
             if (operator.type == PLUS) {
                 v.i = v.i + right_value.i;
@@ -234,7 +235,11 @@ Value term(Lexer *lex) {
                 } else {
                     v.d = a / b;
                 }
-            }          
+            }
+            if (isnan(v.d) || isinf(v.d)) {
+                lex->error_pos = operator.pos;
+                return v;
+            }         
         } else {
             if (operator.type == MUL) {
                 v.i = v.i * right_value.i;
@@ -312,6 +317,77 @@ Value primary(Lexer *lex) {
         lex->error_pos = t.pos;
     }
     return v;
+}
+
+int process_file(const char *input_path, const char *output_path) {
+    Lexer lex = {0};
+    long length = 0;
+
+    char *buffer;
+    buffer = read_file(input_path, &length);
+
+    if (buffer == NULL) {
+        return -1;
+    }
+
+    FILE *fp = fopen(output_path, "w");
+    if (fp == NULL) {
+        free(buffer);
+        return -1;
+    }
+
+    lex.buffer = buffer;
+    lex.length = length;
+
+    long i = 0;
+
+    while (i < length) {
+
+        long j = i;
+        // skip white spaces and tabs at the beginning
+        while (j < length && (buffer[j] == ' ' || buffer[j] == '\t')) {
+            j++;
+        }
+        // only blank spaces till end of file
+        if (j >= length) {
+            break;
+        }
+        // blank line
+        if (buffer[j] == '\n') {
+            i = j + 1;
+            continue;
+        }
+        // skip to end of comment line
+        if (j < length && buffer[j] == '#') {
+            while (j < length && buffer[j] != '\n') {
+                j++;
+            }
+            // skip new line
+            i = j + 1;
+            continue;
+        }
+
+        lex.index = i;
+        next_token(&lex);
+        Value v = expr(&lex);
+
+        if (lex.error_pos == 0 && lex.current.type != END) {
+            lex.error_pos = lex.current.pos;
+        }
+
+        if (lex.error_pos != 0) {
+            break;
+        }
+
+        if (v.is_float) {
+            fprintf(fp, "%.15g\n", v.d);
+        } else {
+            fprintf(fp, "%lld\n", v.i);
+        }
+        i = lex.index + 1;
+    }
+
+    return 0;
 }
 
 double to_double(Value v) {
