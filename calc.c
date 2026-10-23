@@ -71,35 +71,35 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dir") == 0) {
             i++;
             if (i >= argc) {
-                fprintf(stderr, "missing argument value for \"-d\" or \"--dir\"");
+                fprintf(stderr, "missing argument value for \"-d\" or \"--dir\"\n");
                 return 1;
             }
             if (input_dir != NULL) {
-                fprintf(stderr, "too many uses of flag \"-d\" or \"--dir\"");
+                fprintf(stderr, "too many uses of flag \"-d\" or \"--dir\"\n");
                 return 1;
             }
             input_dir = argv[i];
         } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output-dir") == 0) {
             i++;
             if (i >= argc) {
-                fprintf(stderr, "missing argument value for \"-o\" or \"--output-dir\"");
+                fprintf(stderr, "missing argument value for \"-o\" or \"--output-dir\"\n");
                 return 1;
             }
             if (output_dir != NULL) {
-                fprintf(stderr, "too many uses of flag \"-o\" or \"--output-dir\"");
+                fprintf(stderr, "too many uses of flag \"-o\" or \"--output-dir\"\n");
                 return 1;
             }
             output_dir = argv[i];
         } else {
             if (input_file != NULL) {
-                fprintf(stderr, "Please only provide one input file specifically. For multiple input files use \"-d\" or \"--dir\" and the folder name");
+                fprintf(stderr, "Please only provide one input file specifically. For multiple input files use \"-d\" or \"--dir\" and the folder name\n");
                 return 1;
             }
             input_file = argv[i];
         }
     }
     if (input_file == NULL && input_dir == NULL) {
-        fprintf(stderr, "Missing input file or folder.");
+        fprintf(stderr, "Missing input file or folder.\n");
         return 1;
     }
 
@@ -118,18 +118,18 @@ int main(int argc, char **argv) {
     }
 
     if (make_output_dir(output_dir) != 0) {
-        fprintf(stderr, "Error creating output directory");
+        fprintf(stderr, "Error creating output directory\n");
         return 1;
     }
 
     if (input_dir != NULL) {
         if (run_dir(input_dir, output_dir) != 0) {
-            fprintf(stderr, "Error reading from input directory");
+            fprintf(stderr, "Error reading from input directory\n");
             return 1;
         }
     } else {
         if (run_file(input_file, output_dir) != 0) {
-            fprintf(stderr, "Error processing file.");
+            fprintf(stderr, "Error processing file.\n");
             return 1;
         }
     }
