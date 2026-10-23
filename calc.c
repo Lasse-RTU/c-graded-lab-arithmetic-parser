@@ -2,6 +2,8 @@
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
 // Resources used: https://craftinginterpreters.com/parsing-expressions.html [1] I used this to understand to how to build a parser and the logic behind recursive descent
+// AI Chat (Claude Opus 5.5): https://claude.ai/share/f56b9601-f38d-48fb-a5dd-49177f2f7c59
+// TODO: document where AI helped and where exactly the recursive descent source helped, add required explanatory comments, add more explanatory comments, clean up of typos
 
 #include <stdio.h>
 #include <stdlib.h>
