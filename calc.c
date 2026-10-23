@@ -1,8 +1,7 @@
 // Lasse Mads Fenske 260ADM040
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
-// Resources used: https://craftinginterpreters.com/parsing-expressions.html [1] I used this to understand to how to build a parser and the logic behind recursive descent
-// AI Chat (Claude Opus 5.5): https://claude.ai/share/f56b9601-f38d-48fb-a5dd-49177f2f7c59
+// Resources used: https://craftinginterpreters.com/parsing-expressions.html [1], AI Chat (Claude Opus 5.5): https://claude.ai/share/f56b9601-f38d-48fb-a5dd-49177f2f7c59 [2]
 // TODO: document where AI helped and where exactly the recursive descent source helped, add required explanatory comments, add more explanatory comments, clean up of typos
 
 #include <stdio.h>
@@ -22,6 +21,7 @@ typedef enum {
     NUM, PLUS, MINUS, MUL, DIV, POWER, LEFTP, RIGHTP, END, INVALID
     } TokenType;
 
+// The idea of including the token position in the Token for correct ERROR printing is from Claude [2]
 typedef struct {
     TokenType type;
     long pos;
@@ -30,6 +30,8 @@ typedef struct {
     double d; // float values for floats
 } Token;
 
+// Using an ERROR position which gets checked before every recursive call of a function
+// to detect when an error occured is also from Claude [2]
 typedef struct {
     const char *buffer;
     long length;
@@ -38,6 +40,8 @@ typedef struct {
     long error_pos;
 } Lexer;
 
+// Using a value struct with a boolean to determine if the number is a float was also
+// an idea which originated from Claude [2] although I would have come up with this myself as its not really complicated
 typedef struct {
     int is_float;
     long long i;
@@ -67,6 +71,9 @@ int main(int argc, char **argv) {
     const char *input_dir = NULL;
     const char *output_dir = NULL;
     
+    // used Claude [2] for understanding which edge cases exist and need to be covered
+    // also used Claude [2] for explanation of the cli.sh script and checking if it 
+    // clears up some unclear cases
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dir") == 0) {
             i++;
@@ -235,6 +242,8 @@ char *read_file(const char *filename, long *len) {
 
 }
 
+// the general idea and my understanding of how the next_token function should work in theory 
+// comes from Claude [2], but the implementation was done by me completely  
 void next_token(Lexer *lex) {
     long i = lex -> index;
     Token t = {0};
