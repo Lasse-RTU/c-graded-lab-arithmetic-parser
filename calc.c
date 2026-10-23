@@ -10,6 +10,7 @@
 #include <math.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <dirent.h>
 
 #define LAST_NAME "fenske"
 #define FIRST_NAME "lasse"
@@ -52,6 +53,10 @@ double to_double(Value v);
 long long pow_sucks(long long a, long long b);
 int process_file(const char *input_path, const char *output_path);
 int ends_with_txt(const char *name);
+int make_output_dir(const char *output_dir);
+int run_file(const char *input_path, const char *output_dir);
+int run_dir(const char *input_dir, const char *output_dir);
+void get_base_name(const char *path, char *base_name);
 
 
 
@@ -64,54 +69,112 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dir") == 0) {
             i++;
             if (i >= argc) {
+                fprintf(stderr, "missing argument value for \"-d\" or \"--dir\"");
                 return 1;
             }
             if (input_dir != NULL) {
+                fprintf(stderr, "too many uses of flag \"-d\" or \"--dir\"");
                 return 1;
             }
             input_dir = argv[i];
         } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output-dir") == 0) {
             i++;
             if (i >= argc) {
+                fprintf(stderr, "missing argument value for \"-o\" or \"--output-dir\"");
                 return 1;
             }
             if (output_dir != NULL) {
+                fprintf(stderr, "too many uses of flag \"-o\" or \"--output-dir\"");
                 return 1;
             }
             output_dir = argv[i];
         } else {
             if (input_file != NULL) {
+                fprintf(stderr, "Please only provide one input file specifically. For multiple input files use \"-d\" or \"--dir\" and the folder name");
                 return 1;
             }
             input_file = argv[i];
         }
     }
+    if (input_file == NULL && input_dir == NULL) {
+        fprintf(stderr, "Missing input file or folder.");
+        return 1;
+    }
+
+    const char *input = input_file;
+    if (input_dir != NULL) {
+        input = input_dir;
+    }
 
     char base_name[1024];
-    get_base_name(input_file, base_name);
+    get_base_name(input, base_name);
 
     char default_dir[1100];
-
     if (output_dir == NULL) {
         sprintf(default_dir, "%s_%s_%s", base_name, FIRST_NAME, STUDENT_ID);
         output_dir = default_dir;
     }
 
+    if (make_output_dir(output_dir) != 0) {
+        fprintf(stderr, "Error creating output directory");
+        return 1;
+    }
+
+    if (input_dir != NULL) {
+        if (run_dir(input_dir, output_dir) != 0) {
+            fprintf(stderr, "Error reading from input directory");
+            return 1;
+        }
+    } else {
+        if (run_file(input_file, output_dir) != 0) {
+            fprintf(stderr, "Error processing file.");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int make_output_dir(const char *output_dir) {
     if (mkdir(output_dir, 0755) != 0 && errno != EEXIST) {
         perror(output_dir);
-        return 1;
+        return -1;
     }
+    return 0;
+}
 
-    char full_output_path[2200];
-    sprintf(full_output_path, "%s/%s_%s_%s_%s.txt",
+int run_file(const char *input_path, const char *output_dir) {
+    char base_name[1024];
+    get_base_name(input_path, base_name);
+
+    char output_path[2200];
+    sprintf(output_path, "%s/%s_%s_%s_%s.txt",
             output_dir, base_name, FIRST_NAME, LAST_NAME, STUDENT_ID);
 
+    return process_file(input_path, output_path);
+}
 
-    if (process_file(input_file, full_output_path) != 0) {
-        return 1;
+int run_dir(const char *input_dir, const char *output_dir) {
+    DIR *dir = opendir(input_dir);
+    if (dir == NULL) {
+        perror(input_dir);
+        return -1;
     }
 
-    return 0;
+    int result = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // skip non txt files
+        if (!ends_with_txt(entry->d_name)) {
+            continue; 
+        }
+        char input_path[2200];
+        sprintf(input_path, "%s/%s", input_dir, entry->d_name);
+        if (run_file(input_path, output_dir) != 0) {
+            result = -1;
+        }
+    }
+    closedir(dir);
+    return result;
 }
 
 void get_base_name(const char *path, char *base_name) {
