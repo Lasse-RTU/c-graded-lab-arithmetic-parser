@@ -42,28 +42,60 @@ typedef struct {
 
 // Using a value struct with a boolean to determine if the number is a float was also
 // an idea which originated from Claude [2] although I would have come up with this myself as its not really complicated
+// If either value of an operation is a float, both values get converted to a double (using to_double) for the calculation
+// and the is_float bit gets set to 1
 typedef struct {
     int is_float;
     long long i;
     double d;
 } Value;
 
-// reads the whole file inot one buffer with '\0' at the end
+// reads the whole file into one buffer with '\0' at the end
 char *read_file(const char *filename, long *len);
+
+// Token reader which reads every token exactly once
 void next_token(Lexer *lex);
+
+// I/O
+int process_file(const char *input_path, const char *output_path);
+int run_file(const char *input_path, const char *output_dir);
+int run_dir(const char *input_dir, const char *output_dir);
+
+// Helper functions for I/O
+int make_output_dir(const char *output_dir);
+void get_base_name(const char *path, char *base_name);
+int ends_with_txt(const char *name);
+
+
+// Parser
 Value expr(Lexer *lex);
 Value term(Lexer *lex);
 Value power(Lexer *lex);
 Value primary(Lexer *lex);
+
+// Helper functions for parser
 double to_double(Value v);
 long long pow_sucks(long long a, long long b);
-int process_file(const char *input_path, const char *output_path);
-int ends_with_txt(const char *name);
-int make_output_dir(const char *output_dir);
-int run_file(const char *input_path, const char *output_dir);
-int run_dir(const char *input_dir, const char *output_dir);
-void get_base_name(const char *path, char *base_name);
 
+
+// Explaining the Error detection during the parsing process:
+// For error detection I used a suggestion by Claude [2] namely an extra error index which gets
+// to the position of the token where the error occured / where the error is supposed to show.
+// After each call of one of the Non-terminal functions the caller first checks
+// if the error index was set. If that is the case it immediately returns its Value "object"
+// which then lead to the caller of that function to check the error index and so on ... 
+// This ensures that the first error in a file always gets reported
+// and doesn't get overwritten by another error occuring after it.
+
+// Grammar explanation:
+// The operator precendce works correctly because the deeper functions get evaluated first.
+// The order of the functions returning is always as follows (in case of no errors):
+// primary -> power -> term -> expression
+// The '**' operator is right-associative because unlike the term or expression
+// it does not use a loop but instead uses and if statement and calls itself again.
+// e.g. 2 ** 2 ** 2 essentially translates to 2 ** (2 ** 2) because before the first 
+// 2 ** 2 gets evaluated, power calls itself again for (2 ** 2) which evaluates
+// first and the result then gets used for the first ** operator: 2 ** 4
 
 
 int main(int argc, char **argv) {
@@ -222,12 +254,14 @@ char *read_file(const char *filename, long *len) {
     }
 
     // allocates one more byte than the file size for adding \0 at the end
+    // this is the only malloc used by read_file which helps with reading speed of larger files
+    // because there are no extra memory reallocations necessary
     char *buffer = malloc(size + 1);
     if (buffer == NULL) {
         fclose(fp);
         return NULL;
     }
-    
+    // only one fread for reading the entire file into the buffer also helps with speed    
     if(fread(buffer, 1, size, fp) != (size_t)size) {
         free(buffer);
         fclose(fp);
@@ -236,6 +270,7 @@ char *read_file(const char *filename, long *len) {
 
     fclose(fp);
 
+    // add \0 so the buffer string has an end value
     buffer[size] = '\0';
     *len = size;
     return buffer;
@@ -252,6 +287,8 @@ void next_token(Lexer *lex) {
         i++;
     }
     // Token position is 1 based so the token pos is one above the buffer index
+    // using the buffer index as a reference ensures that the index is correctly counting blank spaces and newlines
+    // This is also how the tokeniser keeps track of positions: simply use the buffers index + 1
     t.pos = i + 1;
 
     if (i>=lex->length || lex->buffer[i] == '\n') {
@@ -324,6 +361,7 @@ void next_token(Lexer *lex) {
 // based on the logic and explanations from [1]
 Value expr(Lexer *lex) {
     Value v = term(lex);
+    // check if an error occured in term(lex)
     if (lex->error_pos != 0) {
         return v;
     }
@@ -332,6 +370,7 @@ Value expr(Lexer *lex) {
         Token operator = lex->current;
         next_token(lex);
         Value right_value = term(lex);
+        // check if an error occured in term(lex)
         if (lex->error_pos != 0) {
             return v;
         }
@@ -362,14 +401,17 @@ Value expr(Lexer *lex) {
 // based on the logic and explanations from [1]
 Value term(Lexer *lex) {
     Value v = power(lex);
+    // check if an error occured in power(lex)
     if (lex->error_pos != 0) {
         return v;
     }
     while (lex->current.type == MUL || lex->current.type == DIV) {
         Token operator = lex->current;
         next_token(lex);
-        long right_position = lex->current.pos; // start of the right operand for error reporting
+        // start of the right operand for correct index in error reporting
+        long right_position = lex->current.pos;
         Value right_value = power(lex);
+        // check if an error occured in power(lex)
         if (lex->error_pos != 0) {
             return v;
         }
@@ -401,7 +443,7 @@ Value term(Lexer *lex) {
                 } else {
                     v.i = v.i / right_value.i;
                 }
-            }
+            }   
         }
     }
     return v;
@@ -410,15 +452,19 @@ Value term(Lexer *lex) {
 // based on the logic and explanations from [1]
 Value power(Lexer *lex) {
     Value v = primary(lex);
+    // checks if an error occured during primary(lex)
     if (lex->error_pos != 0) {
         return v;
     }
 
     if (lex->current.type == POWER) {
-        long operator_pos = lex->current.pos; // needed for error index in case of NaN and infinite
+        // needed for correct error index in case of NaN and infinite
+        long operator_pos = lex->current.pos;
         next_token(lex);
-        long exponent_pos = lex->current.pos; // needed for error index in case of negative exponent for integer exponentiation 
+        // needed for correct error index in case of negative exponent for integer exponentiation 
+        long exponent_pos = lex->current.pos; 
         Value right_value = power(lex);
+        // checks if an error occured during power(lex)
         if (lex->error_pos != 0) {
             return v;
         }
@@ -455,15 +501,18 @@ Value primary(Lexer *lex) {
     } else if (t.type == LEFTP) {
         next_token(lex);
         v = expr(lex);
+        // checks if an error occured during expr(lex)
         if (lex->error_pos != 0) {
             return v;
         }
+        // checks if the opening parenthesis gets closed and otherwise sets an error index
         if (lex->current.type == RIGHTP) {
             next_token(lex);
         } else {
             lex->error_pos = lex->current.pos;
             return v;
         }
+    // primary can only evaluate to a Number or Paranthesis so everything else must be invalid
     } else {
         lex->error_pos = t.pos;
     }
@@ -522,12 +571,14 @@ int process_file(const char *input_path, const char *output_path) {
         next_token(&lex);
         Value v = expr(&lex);
 
+        // this ensures errors like one extra closing paranthesis get caught
+        // e.g. (5 + 2)) would get caught because RIGHTP != END
         if (lex.error_pos == 0 && lex.current.type != END) {
             lex.error_pos = lex.current.pos;
         }
-
+        
         if (lex.error_pos != 0) {
-            // close the file and reopen it in write mode to overwrite everythig
+            // close the file and reopen it in write mode to overwrite everything with ERROR:<index>
             fclose(fp);
             fp = fopen(output_path, "w");
             if (fp == NULL) {
