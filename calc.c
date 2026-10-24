@@ -67,7 +67,7 @@ int run_dir(const char *input_dir, const char *output_dir);
 
 // Helper functions for I/O
 int make_output_dir(const char *output_dir);
-void get_base_name(const char *path, char *base_name);
+char *get_base_name(const char *path, int strip_txt);
 int ends_with_txt(const char *name);
 
 
@@ -177,14 +177,19 @@ int main(int argc, char **argv) {
         input = input_dir;
     }
 
-    char base_name[1024];
-    get_base_name(input, base_name);
+    // Part of the adjustments necessary for AI-refactoring of get_base_name()
+    char *base_name = get_base_name(input, (input_file != NULL));
+    if (base_name == NULL) {
+        fprintf(stderr, "Error trying to create a default output folder name from \"%s\",\n", input);
+        return 1;
+    }
 
     char default_dir[1100];
     if (output_dir == NULL) {
         sprintf(default_dir, "%s_%s_%s", base_name, FIRST_NAME, STUDENT_ID);
         output_dir = default_dir;
     }
+    free(base_name);
 
     if (make_output_dir(output_dir) != 0) {
         fprintf(stderr, "Error creating output directory\n");
@@ -214,13 +219,17 @@ int make_output_dir(const char *output_dir) {
 }
 
 int run_file(const char *input_path, const char *output_dir) {
-    char base_name[1024];
-    get_base_name(input_path, base_name);
+    // Part of the adjustments necessary for the AI-refactoring of get_base_name()
+    char *base_name = get_base_name(input_path, 1);
+    if (base_name == NULL) {
+        fprintf(stderr, "Invalid input file name \"%s\"\n", input_path);
+        return -1;
+    }
 
     char output_path[2200];
     sprintf(output_path, "%s/%s_%s_%s_%s.txt",
             output_dir, base_name, FIRST_NAME, LAST_NAME, STUDENT_ID);
-
+    free(base_name);
     return process_file(input_path, output_path);
 }
 
@@ -251,19 +260,40 @@ int run_dir(const char *input_dir, const char *output_dir) {
     return result;
 }
 
-void get_base_name(const char *path, char *base_name) {
+// I refactored / rebuilt this function with the help of Claude [2] to make it more memory safe
+// and handle edge cases. To see how it looked before you can check the previous commits
+char *get_base_name(const char *path, int strip_txt) {
 
-    char *slash = strrchr(path, '/');
-    if (slash != NULL) {
-        strcpy(base_name, ++slash);
-    } else {
-        strcpy(base_name, path);
+    size_t end = strlen(path);
+    // ignore trailing slashes: "labs/" -> "labs"
+    while (end > 0 && path[end - 1] == '/') {
+        end--;
+    }
+    size_t start = end;
+    // walk back to just after the previous '/'
+    while (start > 0 && path[start - 1] != '/') {
+        start--;
+    }
+
+    size_t len = end - start;
+
+    // only strip if the file name is larger than 4 so ".txt" stays ".txt"
+    if (strip_txt && len > 4 && memcmp(path + end - 4, ".txt", 4) == 0) {
+        len -= 4;
+    }
+
+    // "", "." and ".."  would give unusable folder name so the caller gets NULL instead
+    if (len == 0 || (len == 1 && path[start] == '.') || (len == 2 && path[start] == '.' && path[start + 1] == '.')) {
+        return NULL;
     }
     
-    if (ends_with_txt(base_name) != 0) {
-        base_name[strlen(base_name) - 4] = '\0';
+    char *base_name = malloc(len + 1);
+    if (base_name == NULL) {
+        return NULL;
     }
-
+    memcpy(base_name, path + start, len);
+    base_name[len] = '\0';
+    return base_name;
 }
 
 int ends_with_txt(const char *name) {
