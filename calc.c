@@ -25,13 +25,15 @@ typedef enum {
 typedef struct {
     TokenType type;
     long pos;
-    int is_float; // 1 if the NUM token had a '.' otherwise false
+    int is_float; // 1 if the NUM token had a '.' otherwise 0 (false)
     long long i; // integer values
     double d; // float values for floats
 } Token;
 
-// Using an ERROR position which gets checked before every recursive call of a function
-// to detect when an error occured is also from Claude [2]
+// Using an ERROR position which gets checked after every recursive call of a function
+// to detect when an error occurred is also from Claude [2]
+// the lexer simply walks the buffer without copying anything and parses numbers diretly from
+// the buffer which helps with memory efficiency
 typedef struct {
     const char *buffer;
     long length;
@@ -41,7 +43,7 @@ typedef struct {
 } Lexer;
 
 // Using a value struct with a boolean to determine if the number is a float was also
-// an idea which originated from Claude [2] although I would have come up with this myself as its not really complicated
+// an idea which originated from Claude [2]
 // If either value of an operation is a float, both values get converted to a double (using to_double) for the calculation
 // and the is_float bit gets set to 1
 typedef struct {
@@ -75,12 +77,12 @@ Value primary(Lexer *lex);
 
 // Helper functions for parser
 double to_double(Value v);
-long long pow_sucks(long long a, long long b);
+long long pow_int(long long a, long long b);
 
 
 // Explaining the Error detection during the parsing process:
 // For error detection I used a suggestion by Claude [2] namely an extra error index which gets
-// to the position of the token where the error occured / where the error is supposed to show.
+// to the position of the token where the error occurred / where the error is supposed to show.
 // After each call of one of the Non-terminal functions the caller first checks
 // if the error index was set. If that is the case it immediately returns its Value "object"
 // which then lead to the caller of that function to check the error index and so on ... 
@@ -88,14 +90,18 @@ long long pow_sucks(long long a, long long b);
 // and doesn't get overwritten by another error occuring after it.
 
 // Grammar explanation:
-// The operator precendce works correctly because the deeper functions get evaluated first.
-// The order of the functions returning is always as follows (in case of no errors):
-// primary -> power -> term -> expression
+// The operator precedence works correctly because the deeper functions get evaluated first.
+// Each function gets its operand by calling the function of the next higher precedence level
+// expression -> term -> power -> primary
+// So when e.g. term sees a '/' as in 4 / 2 ** 2 and evaluates it power has already run
+// and calculated 2 ** 2 = 4 so term only sees 4 / 4
+// expr() and termn both use a while loop for the evaluation and fold the right operand into v
+// which is why 10 - 3 - 2 is (10 - 3) - 2  (and thus left associative)
 // The '**' operator is right-associative because unlike the term or expression
 // it does not use a loop but instead uses and if statement and calls itself again.
-// e.g. 2 ** 2 ** 2 essentially translates to 2 ** (2 ** 2) because before the first 
-// 2 ** 2 gets evaluated, power calls itself again for (2 ** 2) which evaluates
-// first and the result then gets used for the first ** operator: 2 ** 4
+// e.g. 2 ** 3 ** 2 essentially translates to 2 ** (3 ** 2) because before 
+// 2 ** 3 would get evaluated, power calls itself again for (3 ** 2) which evaluates
+// first and returns it and the result then gets used for the first ** operator: 2 ** 9
 
 
 int main(int argc, char **argv) {
@@ -361,7 +367,7 @@ void next_token(Lexer *lex) {
 // based on the logic and explanations from [1]
 Value expr(Lexer *lex) {
     Value v = term(lex);
-    // check if an error occured in term(lex)
+    // check if an error occurred in term(lex)
     if (lex->error_pos != 0) {
         return v;
     }
@@ -370,7 +376,7 @@ Value expr(Lexer *lex) {
         Token operator = lex->current;
         next_token(lex);
         Value right_value = term(lex);
-        // check if an error occured in term(lex)
+        // check if an error occurred in term(lex)
         if (lex->error_pos != 0) {
             return v;
         }
@@ -383,6 +389,8 @@ Value expr(Lexer *lex) {
             } else {
                 v.d = a - b;
             }
+            // both operands where valid but the operator returned infinity or not a number
+            // so the error position gets set to the operator index
             if (isnan(v.d) || isinf(v.d)) {
                 lex->error_pos = operator.pos;
                 return v;
@@ -401,17 +409,18 @@ Value expr(Lexer *lex) {
 // based on the logic and explanations from [1]
 Value term(Lexer *lex) {
     Value v = power(lex);
-    // check if an error occured in power(lex)
+    // check if an error occurred in power(lex)
     if (lex->error_pos != 0) {
         return v;
     }
     while (lex->current.type == MUL || lex->current.type == DIV) {
         Token operator = lex->current;
         next_token(lex);
-        // start of the right operand for correct index in error reporting
+        // start of the right operand for correct index in case
+        // it evaluates to 0 and the operator is DIV 
         long right_position = lex->current.pos;
         Value right_value = power(lex);
-        // check if an error occured in power(lex)
+        // check if an error occurred in power(lex)
         if (lex->error_pos != 0) {
             return v;
         }
@@ -429,6 +438,8 @@ Value term(Lexer *lex) {
                     v.d = a / b;
                 }
             }
+            // both operands where valid but the operator returned infinity or not a number
+            // so the error position gets set to the operator index
             if (isnan(v.d) || isinf(v.d)) {
                 lex->error_pos = operator.pos;
                 return v;
@@ -452,7 +463,7 @@ Value term(Lexer *lex) {
 // based on the logic and explanations from [1]
 Value power(Lexer *lex) {
     Value v = primary(lex);
-    // checks if an error occured during primary(lex)
+    // checks if an error occurred during primary(lex)
     if (lex->error_pos != 0) {
         return v;
     }
@@ -464,7 +475,7 @@ Value power(Lexer *lex) {
         // needed for correct error index in case of negative exponent for integer exponentiation 
         long exponent_pos = lex->current.pos; 
         Value right_value = power(lex);
-        // checks if an error occured during power(lex)
+        // checks if an error occurred during power(lex)
         if (lex->error_pos != 0) {
             return v;
         }
@@ -473,16 +484,19 @@ Value power(Lexer *lex) {
             double b = to_double(right_value);
             v.is_float = 1;
             v.d = pow(a, b);
+            // both operands where valid but the operator returned infinity or not a number
+            // so the error position gets set to the operator index
             if (isnan(v.d) || isinf(v.d)) {
                 lex->error_pos = operator_pos;
                 return v;
             }  
         } else {
+            // if the exponent is an integer and below 0 set error_pos to the exponents first token
             if (right_value.i < 0) {
                 lex->error_pos = exponent_pos;
                 return v;
             } else {
-                v.i = pow_sucks(v.i, right_value.i);
+                v.i = pow_int(v.i, right_value.i);
             }
         }
     }
@@ -501,7 +515,7 @@ Value primary(Lexer *lex) {
     } else if (t.type == LEFTP) {
         next_token(lex);
         v = expr(lex);
-        // checks if an error occured during expr(lex)
+        // checks if an error occurred during expr(lex)
         if (lex->error_pos != 0) {
             return v;
         }
@@ -512,7 +526,9 @@ Value primary(Lexer *lex) {
             lex->error_pos = lex->current.pos;
             return v;
         }
-    // primary can only evaluate to a Number or Paranthesis so everything else must be invalid
+    // an operand can only start with a Number or a Paranthesis so everything else
+    // must be and INVALID Token or something like two operators after each other
+    // so the error position gets set as that token
     } else {
         lex->error_pos = t.pos;
     }
@@ -612,7 +628,7 @@ double to_double(Value v) {
 // the default pow function of the math library uses double for calculation
 // and thus is imprecise. That's why I had to create this helper function
 // b needs to be at least 0
-long long pow_sucks(long long a, long long b) {
+long long pow_int(long long a, long long b) {
     long long result = 1;
     for (long long i = 1; i <= b ;i++) {
         result *= a;
