@@ -6,6 +6,10 @@
 // [1] was mainly used to understand the concept of recursive descent and help me with
 // converting the grammar provided in the assignment hint to code
 
+// [2] AI was mainly used to understand how to approach the assignment, the structure and functionality of the tokenizer
+// and for the handling of some edge cases with cli arguments. I have included the prompts, but as it is a continuous chat history
+// I recommend checking the entire chat history using the link provided
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>  
@@ -111,9 +115,12 @@ int main(int argc, char **argv) {
     const char *input_dir = NULL;
     const char *output_dir = NULL;
     
-    // used Claude [2] for understanding which edge cases exist and need to be covered
-    // also used Claude [2] for explanation of the cli.sh script and checking if it 
-    // clears up some unclear cases
+    // Used Claude [2] for understanding which edge cases exist and need to be covered
+    // Prompt: "I've done most of the implementation now, but I am not sure about the parsing of the flags. How should I handle it if there are multiple entries for one flag? for example someone puts -d twice or something. Should I just return non zero and write to strderr?"
+    // Used Claude [2] for explanation of the cli.sh script and checking if it clears up some unclear cases
+    // Prompt: "this is cli.sh, can you check if this clears things up? [code of cli.sh]"
+    // Used Claude [2] for checking if all the edge cases where coered now (they were not).
+    // Prompt: "This is my main function right now. Does this cover all the edge cases or should I add some additional checks? The cli.sh tests all pass. [code of the main function from before]" 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dir") == 0) {
             i++;
@@ -138,7 +145,7 @@ int main(int argc, char **argv) {
             }
             output_dir = argv[i];
         } else if (argv[i][0] == '-') {
-            fprintf(stderr, "unknown option \" %s \"\n", argv[i]);
+            fprintf(stderr, "unknown option \"%s\"\n", argv[i]);
             return 1;
         } else {
             if (input_file != NULL) {
@@ -153,7 +160,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     if (input_file != NULL && input_dir != NULL) {
-        fprintf(stderr, "Please only provide one input file OR an input diretory, not both.");
+        fprintf(stderr, "Please only provide one input file OR an input diretory, not both.\n");
         return 1;
     }
 
@@ -262,6 +269,9 @@ int run_dir(const char *input_dir, const char *output_dir) {
 
 // I refactored / rebuilt this function with the help of Claude [2] to make it more memory safe
 // and handle edge cases. To see how it looked before you can check the previous commits
+// Prompt: "this is get_base_name right now. any recommendations? [code of the version before]"
+// Used Claude [2] to know which folder names cannot be used
+// Prompt: "what symbols where in the file path lead to an unusable result?"
 char *get_base_name(const char *path, int strip_txt) {
 
     size_t end = strlen(path);
