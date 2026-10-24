@@ -2,7 +2,9 @@
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
 // Resources used: https://craftinginterpreters.com/parsing-expressions.html [1], AI Chat (Claude Opus 5.5): https://claude.ai/share/f56b9601-f38d-48fb-a5dd-49177f2f7c59 [2]
-// TODO: document where AI helped and where exactly the recursive descent source helped, add required explanatory comments, add more explanatory comments, clean up of typos
+
+// [1] was mainly used to understand the concept of recursive descent and help me with
+// converting the grammar provided in the assignment hint to code
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -135,6 +137,9 @@ int main(int argc, char **argv) {
                 return 1;
             }
             output_dir = argv[i];
+        } else if (argv[i][0] == '-') {
+            fprintf(stderr, "unknown option \" %s \"\n", argv[i]);
+            return 1;
         } else {
             if (input_file != NULL) {
                 fprintf(stderr, "Please only provide one input file specifically. For multiple input files use \"-d\" or \"--dir\" and the folder name\n");
@@ -147,6 +152,25 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Missing input file or folder.\n");
         return 1;
     }
+    if (input_file != NULL && input_dir != NULL) {
+        fprintf(stderr, "Please only provide one input file OR an input diretory, not both.");
+        return 1;
+    }
+
+    // the main part of this code block was provided by Claude [2]
+    struct stat st;
+    if (input_dir != NULL) {
+        if (stat(input_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
+            fprintf(stderr, "Input folder \"%s\" does not exist or is not a folder\n", input_dir);
+            return 1;
+        }
+    } else {
+        if (stat(input_file, &st) != 0 || !S_ISREG(st.st_mode)) {
+            fprintf(stderr, "Input file \"%s\" does not exist or is not a file\n", input_file);
+            return 1;
+        }
+    }
+
 
     const char *input = input_file;
     if (input_dir != NULL) {
@@ -210,12 +234,15 @@ int run_dir(const char *input_dir, const char *output_dir) {
     int result = 0;
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        // skip non txt files
-        if (!ends_with_txt(entry->d_name)) {
-            continue; 
-        }
         char input_path[2200];
         sprintf(input_path, "%s/%s", input_dir, entry->d_name);
+
+        // the folder can include non-txt files or subfolder including .txt in the name
+        // stat ensures that only regular files get read
+        struct stat st;
+        if (!ends_with_txt(entry->d_name) || stat(input_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+            continue; 
+        }
         if (run_file(input_path, output_dir) != 0) {
             result = -1;
         }
