@@ -28,6 +28,7 @@ typedef enum {
     } TokenType;
 
 // The idea of including the token position in the Token for correct ERROR printing is from Claude [2]
+// Prompt: "can you explain to me how to approach this assignment: [assignment text]"
 typedef struct {
     TokenType type;
     long pos;
@@ -38,7 +39,8 @@ typedef struct {
 
 // Using an ERROR position which gets checked after every recursive call of a function
 // to detect when an error occurred is also from Claude [2]
-// the lexer simply walks the buffer without copying anything and parses numbers diretly from
+// Prompt: "can you explain to me how to approach this assignment: [assignment text]"
+// the lexer simply walks the buffer without copying anything and parses numbers directly from
 // the buffer which helps with memory efficiency
 typedef struct {
     const char *buffer;
@@ -50,6 +52,7 @@ typedef struct {
 
 // Using a value struct with a boolean to determine if the number is a float was also
 // an idea which originated from Claude [2]
+// Prompt: "can you explain to me how to approach this assignment: [assignment text]"
 // If either value of an operation is a float, both values get converted to a double (using to_double) for the calculation
 // and the is_float bit gets set to 1
 typedef struct {
@@ -94,6 +97,7 @@ long long pow_int(long long a, long long b);
 // which then lead to the caller of that function to check the error index and so on ... 
 // This ensures that the first error in a file always gets reported
 // and doesn't get overwritten by another error occuring after it.
+// Prompt: "can you explain to me how to approach this assignment: [assignment text]"
 
 // Grammar explanation:
 // The operator precedence works correctly because the deeper functions get evaluated first.
@@ -101,7 +105,7 @@ long long pow_int(long long a, long long b);
 // expression -> term -> power -> primary
 // So when e.g. term sees a '/' as in 4 / 2 ** 2 and evaluates it power has already run
 // and calculated 2 ** 2 = 4 so term only sees 4 / 4
-// expr() and termn both use a while loop for the evaluation and fold the right operand into v
+// expr() and term() both use a while loop for the evaluation and fold the right operand into v
 // which is why 10 - 3 - 2 is (10 - 3) - 2  (and thus left associative)
 // The '**' operator is right-associative because unlike the term or expression
 // it does not use a loop but instead uses and if statement and calls itself again.
@@ -160,11 +164,12 @@ int main(int argc, char **argv) {
         return 1;
     }
     if (input_file != NULL && input_dir != NULL) {
-        fprintf(stderr, "Please only provide one input file OR an input diretory, not both.\n");
+        fprintf(stderr, "Please only provide one input file OR an input directory, not both.\n");
         return 1;
     }
 
     // the main part of this code block was provided by Claude [2]
+    // Prompt: "This is my main function right now. Does this cover all the edge cases or should I add some additional checks? The cli.sh tests all pass. [code of the main function from before]" 
     struct stat st;
     if (input_dir != NULL) {
         if (stat(input_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
@@ -184,19 +189,25 @@ int main(int argc, char **argv) {
         input = input_dir;
     }
 
-    // Part of the adjustments necessary for AI-refactoring of get_base_name()
-    char *base_name = get_base_name(input, (input_file != NULL));
-    if (base_name == NULL) {
-        fprintf(stderr, "Error trying to create a default output folder name from \"%s\",\n", input);
-        return 1;
-    }
 
     char default_dir[1100];
+    // Used Claude [2] for fixing potential overflow due to too large names
+    // Prompt: "I'd like to fix the possible overflow here. I know i need to use snprintf but how do I best approach that. I got some other parts in the code where this could happen as well: [prior code block]"
     if (output_dir == NULL) {
-        sprintf(default_dir, "%s_%s_%s", base_name, FIRST_NAME, STUDENT_ID);
+        // Part of the adjustments necessary for AI-refactoring of get_base_name()
+        char *base_name = get_base_name(input, (input_file != NULL));
+        if (base_name == NULL) {
+            fprintf(stderr, "Error trying to create a default output folder name from \"%s\".\n", input);
+            return 1;
+        }
+        int n = snprintf(default_dir, sizeof default_dir, "%s_%s_%s", base_name, FIRST_NAME, STUDENT_ID);
+        free(base_name);
+        if (n >= (int)sizeof default_dir) {
+            fprintf(stderr, "Output folder name too long\n");
+            return 1;
+        }
         output_dir = default_dir;
     }
-    free(base_name);
 
     if (make_output_dir(output_dir) != 0) {
         fprintf(stderr, "Error creating output directory\n");
@@ -233,10 +244,15 @@ int run_file(const char *input_path, const char *output_dir) {
         return -1;
     }
 
-    char output_path[2200];
-    sprintf(output_path, "%s/%s_%s_%s_%s.txt",
-            output_dir, base_name, FIRST_NAME, LAST_NAME, STUDENT_ID);
+    // Used Claude [2] for fixing potential overflow due to too large names
+    // Prompt: "I'd like to fix the possible overflow here. I know i need to use snprintf but how do I best approach that. I got some other parts in the code where this could happen as well: [prior code block from main]"
+    char output_path[4096];
+    int n = snprintf(output_path, sizeof output_path, "%s/%s_%s_%s_%s.txt", output_dir, base_name, FIRST_NAME, LAST_NAME, STUDENT_ID);
     free(base_name);
+    if (n >= (int)sizeof output_path) {
+        fprintf(stderr, "Output path too long\n");
+        return -1;
+    }  
     return process_file(input_path, output_path);
 }
 
@@ -250,8 +266,14 @@ int run_dir(const char *input_dir, const char *output_dir) {
     int result = 0;
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        char input_path[2200];
-        sprintf(input_path, "%s/%s", input_dir, entry->d_name);
+        // Used Claude [2] for fixing potential overflow due to too large names
+        // Prompt: "I'd like to fix the possible overflow here. I know i need to use snprintf but how do I best approach that. I got some other parts in the code where this could happen as well: [prior code block from main]"
+        char input_path[4096];
+        int n = snprintf(input_path, sizeof input_path, "%s/%s",input_dir, entry->d_name);
+        if (n >= (int)sizeof input_path) {
+            result = -1;
+            continue;
+        }  
 
         // the folder can include non-txt files or subfolder including .txt in the name
         // stat ensures that only regular files get read
@@ -351,7 +373,8 @@ char *read_file(const char *filename, long *len) {
 }
 
 // the general idea and my understanding of how the next_token function should work in theory 
-// comes from Claude [2], but the implementation was done by me completely  
+// comes from Claude [2], but the implementation was done by me completely
+// Prompt: "Can you explain the tokenizer further please"
 void next_token(Lexer *lex) {
     long i = lex -> index;
     Token t = {0};
@@ -456,7 +479,7 @@ Value expr(Lexer *lex) {
             } else {
                 v.d = a - b;
             }
-            // both operands where valid but the operator returned infinity or not a number
+            // both operands were valid but the operator returned infinity or not a number
             // so the error position gets set to the operator index
             if (isnan(v.d) || isinf(v.d)) {
                 lex->error_pos = operator.pos;
@@ -505,7 +528,7 @@ Value term(Lexer *lex) {
                     v.d = a / b;
                 }
             }
-            // both operands where valid but the operator returned infinity or not a number
+            // both operands were valid but the operator returned infinity or not a number
             // so the error position gets set to the operator index
             if (isnan(v.d) || isinf(v.d)) {
                 lex->error_pos = operator.pos;
@@ -551,7 +574,7 @@ Value power(Lexer *lex) {
             double b = to_double(right_value);
             v.is_float = 1;
             v.d = pow(a, b);
-            // both operands where valid but the operator returned infinity or not a number
+            // both operands were valid but the operator returned infinity or not a number
             // so the error position gets set to the operator index
             if (isnan(v.d) || isinf(v.d)) {
                 lex->error_pos = operator_pos;
@@ -593,7 +616,7 @@ Value primary(Lexer *lex) {
             lex->error_pos = lex->current.pos;
             return v;
         }
-    // an operand can only start with a Number or a Paranthesis so everything else
+    // an operand can only start with a Number or a parenthesis so everything else
     // must be and INVALID Token or something like two operators after each other
     // so the error position gets set as that token
     } else {
@@ -654,7 +677,7 @@ int process_file(const char *input_path, const char *output_path) {
         next_token(&lex);
         Value v = expr(&lex);
 
-        // this ensures errors like one extra closing paranthesis get caught
+        // this ensures errors like one extra closing parenthesis get caught
         // e.g. (5 + 2)) would get caught because RIGHTP != END
         if (lex.error_pos == 0 && lex.current.type != END) {
             lex.error_pos = lex.current.pos;
@@ -677,6 +700,8 @@ int process_file(const char *input_path, const char *output_path) {
         } else {
             fprintf(fp, "%lld\n", v.i);
         }
+        // skips the END-Token so i now either points
+        // at the next line (if END was \n) or at EOF + 1 which cancels the loop
         i = lex.index + 1;
     }
     fclose(fp);
