@@ -1,7 +1,7 @@
 // Lasse Fenske 260ADM040
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
-// Resources used: https://craftinginterpreters.com/parsing-expressions.html [1], AI Chat (Claude Opus 5.5): https://claude.ai/share/f56b9601-f38d-48fb-a5dd-49177f2f7c59 [2]
+// Resources used: https://craftinginterpreters.com/parsing-expressions.html [1]; AI Chat (Claude Opus 5.5): https://claude.ai/share/f56b9601-f38d-48fb-a5dd-49177f2f7c59 [2]; https://devdocs.io/c/ [3]; https://www.w3schools.com/c/c_ref_string.php [4]
 
 // [1] was mainly used to understand the concept of recursive descent and help me with
 // converting the grammar provided in the assignment hint to code
@@ -9,6 +9,9 @@
 // [2] AI was mainly used to understand how to approach the assignment, the structure and functionality of the tokenizer
 // and for the handling of some edge cases with cli arguments. I have included the prompts, but as it is a continuous chat history
 // I recommend checking the entire chat history using the link provided
+
+// Apart from the materials provided in the e-studijas course, I also used the C documentation [3]
+// as well as an overview and explanation of string methods [4] throughout the development process
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -609,7 +612,7 @@ Value primary(Lexer *lex) {
         if (lex->error_pos != 0) {
             return v;
         }
-        // checks if the opening parenthesis gets closed and otherwise sets an error index
+        // checks if the opening parenthesis gets closed and otherwise sets the error index to the current token (END-token)
         if (lex->current.type == RIGHTP) {
             next_token(lex);
         } else {
