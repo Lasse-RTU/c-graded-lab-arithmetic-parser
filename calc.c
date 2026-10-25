@@ -1,4 +1,4 @@
-// Lasse Mads Fenske 260ADM040
+// Lasse Fenske 260ADM040
 // https://github.com/Lasse-RTU/c-graded-lab-arithmetic-parser
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
 // Resources used: https://craftinginterpreters.com/parsing-expressions.html [1], AI Chat (Claude Opus 5.5): https://claude.ai/share/f56b9601-f38d-48fb-a5dd-49177f2f7c59 [2]
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
     // Prompt: "I've done most of the implementation now, but I am not sure about the parsing of the flags. How should I handle it if there are multiple entries for one flag? for example someone puts -d twice or something. Should I just return non zero and write to strderr?"
     // Used Claude [2] for explanation of the cli.sh script and checking if it clears up some unclear cases
     // Prompt: "this is cli.sh, can you check if this clears things up? [code of cli.sh]"
-    // Used Claude [2] for checking if all the edge cases where coered now (they were not).
+    // Used Claude [2] for checking if all the edge cases where covered now (they were not).
     // Prompt: "This is my main function right now. Does this cover all the edge cases or should I add some additional checks? The cli.sh tests all pass. [code of the main function from before]" 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dir") == 0) {
